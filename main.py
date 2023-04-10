@@ -1,3 +1,8 @@
+"""finds open ports on your system
+- scan for open ports
+- check if a given port is open
+- get details of the process using the port"""
+
 from psutil import net_connections, Process
 from argparse import ArgumentParser
 from argparse import Namespace as ArgNamespace
@@ -5,6 +10,7 @@ from typing import NamedTuple
 import pandas
 from sys import argv
 
+# using a named tuple hels with type annotations and formatting for the user
 process_data = NamedTuple(
     "process_data", [
         ("ip", str),
@@ -13,6 +19,7 @@ process_data = NamedTuple(
         ("proc_name", str)
     ]
 )
+
 
 def define_and_read_args(arguments: list[str]) -> ArgNamespace:
     """configure parsers
@@ -44,17 +51,24 @@ def define_and_read_args(arguments: list[str]) -> ArgNamespace:
         help="Check details of the process using the port",
         required=False
     )
+    scan.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Output the data in JSON format",
+        required=False
+    )
     scan.set_defaults(func=scan_ports)
 
     check = functions.add_parser(
-        "check",
-        description="Checks if the given port is open"
+        "checkport",
+        description="Checks if the given port is open. Returns a 1 if it is open, 0 if it is closed."
     )
     check.add_argument(
         "-i",
         "--ip",
         type=str,
-        help="IP address to scan",
+        help="IP address to check",
         required=True
     )
     check.add_argument(
@@ -64,32 +78,61 @@ def define_and_read_args(arguments: list[str]) -> ArgNamespace:
         help="Port to check",
         required=True
     )
+    check.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print details of the process using the port",
+    )
     check.set_defaults(func=check_port)
 
     return main_parser.parse_args(arguments)
 
 
 def scan_ports(args: ArgNamespace) -> None:
+    """scan for open ports
+    - filter by IP address, if specified
+    - check the process using the port, if specified"""
+
+    # we start with all the data and then filter down as we go
     open_ports = net_connections()
 
+    # filter by IP address, if specified
     if args.ip:
         open_ports = filter(lambda x: x.laddr.ip == args.ip, open_ports)  # type: ignore
 
+    # format to the named tuple
+    # add on the process names, if specified
     if args.checkprocess:
-        open_ports = map(lambda x: process_data(x.laddr.ip, x.laddr.port, x.pid, Process(x.pid).name()), open_ports)  # type: ignore
+        open_ports = tuple(process_data(
+            port.laddr.ip,  # type: ignore
+            port.laddr.port,  # type: ignore
+            port.pid,  # type: ignore
+            Process(port.pid).name()
+        ) for port in open_ports)
 
     else:
-        open_ports = map(lambda x: process_data(
-            x.laddr.ip, x.laddr.port, x.pid, ""), open_ports)  # type: ignore
+        open_ports = tuple(process_data(
+            port.laddr.ip,  # type: ignore
+            port.laddr.port,  # type: ignore
+            port.pid,  # type: ignore
+            ""
+        ) for port in open_ports)
 
-    open_ports = tuple(open_ports)
-
+    # pandas is being used just to format the data
     if any(open_ports):
-        if args.checkprocess:
-            print(pandas.DataFrame(open_ports).to_string())
+        df = pandas.DataFrame(open_ports, columns=["IP", "Port", "PID", "Process Name"])
+
+        # drop empty columns, if not checking the process names
+        if not args.checkprocess:
+            df = df.drop(columns=["PID", "Process Name"])
+
+        # print the data in the specified format
+        if args.json:
+            print(df.to_json(orient="records", indent=4))
 
         else:
-            print(pandas.DataFrame(open_ports).drop(columns=["pid", "proc_name"]).to_string())
+            print(df.to_string(index=False))
 
         print(f"Total open ports: {len(open_ports)}")
 
@@ -98,14 +141,35 @@ def scan_ports(args: ArgNamespace) -> None:
 
 
 def check_port(args: ArgNamespace) -> None:
+    """check if a given port is open
+    - check if the port is open
+    - get details of the process using the port"""
+
     open_ports = net_connections()
     open_port = next(filter(lambda x: x.laddr.ip == args.ip and x.laddr.port == args.port, open_ports), None)  # type: ignore
 
+    if not args.verbose:
+        print(1 if open_port else 0)
+        return
+
+    # print the details of the process using the port only if asked for it
     if open_port:
-        print(process_data(open_port.laddr.ip, open_port.laddr.port, open_port.pid, Process(open_port.pid).name()))
+        print("Port is open")
+        print(process_data(
+            open_port.laddr.ip,  # type: ignore
+            open_port.laddr.port,  # type: ignore
+            open_port.pid,  # type: ignore
+            Process(open_port.pid).name()
+        ))
+
+    else:
+        print("Port is closed")
 
 
 def main(arguments: list[str]) -> None:
+    """main function
+    - run the application"""
+
     args = define_and_read_args(arguments)
     args.func(args)
 
