@@ -139,8 +139,8 @@ def scan_ports(args: ArgNamespace) -> None:
 
         else:
             print(df.to_string(index=False))
+            print(f"Total open ports: {len(open_ports)}")
 
-        print(f"Total open ports: {len(open_ports)}")
 
     else:
         print("No open ports found")
