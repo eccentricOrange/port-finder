@@ -1,11 +1,18 @@
+from psutil import net_connections, Process
 from argparse import ArgumentParser
 from argparse import Namespace as ArgNamespace
-from logging import DEBUG, INFO, FileHandler, Formatter, Logger, getLogger
-from colorama import Fore, Style
+from typing import NamedTuple
+import pandas
+from sys import argv
 
-
-from psutil import net_connections
-
+process_data = NamedTuple(
+    "process_data", [
+        ("ip", str),
+        ("port", int),
+        ("pid", int),
+        ("proc_name", str)
+    ]
+)
 
 def define_and_read_args(arguments: list[str]) -> ArgNamespace:
     """configure parsers
@@ -28,6 +35,13 @@ def define_and_read_args(arguments: list[str]) -> ArgNamespace:
         "--ip",
         type=str,
         help="IP address to scan",
+        required=False
+    )
+    scan.add_argument(
+        "-c",
+        "--checkprocess",
+        action="store_true",
+        help="Check details of the process using the port",
         required=False
     )
     scan.set_defaults(func=scan_ports)
@@ -59,13 +73,36 @@ def scan_ports(args: ArgNamespace) -> None:
     open_ports = net_connections()
 
     if args.ip:
-        required_ports = filter(lambda x: x.laddr.ip == args.ip, open_ports)
+        open_ports = filter(lambda x: x.laddr.ip == args.ip, open_ports)  # type: ignore
 
-        print(*required_ports, sep="\n\n")
+    if args.checkprocess:
+        open_ports = map(lambda x: process_data(x.laddr.ip, x.laddr.port, x.pid, Process(x.pid).name()), open_ports)  # type: ignore
+
+    else:
+        open_ports = map(lambda x: process_data(
+            x.laddr.ip, x.laddr.port, x.pid, ""), open_ports)  # type: ignore
+
+    open_ports = tuple(open_ports)
+
+    if any(open_ports):
+        if args.checkprocess:
+            print(pandas.DataFrame(open_ports).to_string())
+
+        else:
+            print(pandas.DataFrame(open_ports).drop(columns=["pid", "proc_name"]).to_string())
+
+        print(f"Total open ports: {len(open_ports)}")
+
+    else:
+        print("No open ports found")
 
 
 def check_port(args: ArgNamespace) -> None:
-    pass
+    open_ports = net_connections()
+    open_port = next(filter(lambda x: x.laddr.ip == args.ip and x.laddr.port == args.port, open_ports), None)  # type: ignore
+
+    if open_port:
+        print(process_data(open_port.laddr.ip, open_port.laddr.port, open_port.pid, Process(open_port.pid).name()))
 
 
 def main(arguments: list[str]) -> None:
@@ -74,4 +111,4 @@ def main(arguments: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    main(["scan", "-i", "127.0.0.1"])
+    main(argv[1:])
