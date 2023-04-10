@@ -84,6 +84,12 @@ def define_and_read_args(arguments: list[str]) -> ArgNamespace:
         action="store_true",
         help="Print details of the process using the port",
     )
+    check.add_argument(
+        "-k",
+        "--kill",
+        action="store_true",
+        help="Attempt to kill the process using the port. WARNING: This will kill the process without any confirmation.",
+    )
     check.set_defaults(func=check_port)
 
     return main_parser.parse_args(arguments)
@@ -164,6 +170,14 @@ def check_port(args: ArgNamespace) -> None:
 
     else:
         print("Port is closed")
+
+    # attempt to kill the process using the port, if asked for it
+    if args.kill and open_port:
+        try:
+            Process(open_port.pid).kill()
+
+        except PermissionError:
+            print("You do not have permission to kill this process")
 
 
 def main(arguments: list[str]) -> None:
