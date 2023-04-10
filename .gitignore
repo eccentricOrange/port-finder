@@ -130,3 +130,6 @@ dmypy.json
 
 # Experimental files
 exp*
+
+# VS Code
+.vscode/
