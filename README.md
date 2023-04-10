@@ -1,7 +1,7 @@
 # port-finder
 Finds open ports on your system.
 
-> **NOTE:** This project was built in about one day, and should not be considered reliable for real-world use. It is intended as a learning exercise. Please use established tools like [`nstat`](https://en.wikipedia.org/wiki/Netstat), which should be available (and often pre-installed) on most modern operating systems.
+> **NOTE:** This project was built in about one day, and should not be considered reliable for real-world use. It is intended as a learning exercise. Please use established tools like [`netstat`](https://en.wikipedia.org/wiki/Netstat), which should be available (and often pre-installed) on most modern operating systems.
 
 ## Overview
 This is a simple utility that finds open ports on your system.  It is written in Python 3, and uses the `psutil` module to find processes that are listening on ports.
